@@ -45,6 +45,81 @@ void Z(qreg *reg, int *buff, int n);
 */
 void Z_qbit(qbit *qubit);
 
+/*
+    Hadamard gate that creates an equal superposition between the states of a qubit
+    in respect to the whole register.
+    Specify buffer of indexes to be affected and the size of the buffer.
+*/
+void H(qreg *reg, int *buff, int n);
+
+/*
+    Hadamard gate that creates an equal superposition between the states of a qubit
+    in respect to a single qubit.
+*/
+void H_qbit(qbit *qubit);
+
+/*
+    Function to update the register state matrix after Hadamard operation.
+*/
+void Hadamard_mat(qreg *reg, int first, int second);
+
+void PA(qreg *reg){
+    for(int i=0; i< pow(2, reg->size); i++){
+        printf("\n[%d]:\t[%.5f", i, creal(reg->matrix[i]));
+        if(cimag(reg->matrix[i]) >= 0){
+            printf("+");
+        }
+        printf("%.5fi] |", cimag(reg->matrix[i]));
+        for(int k=0; k<reg->size; k++){
+            int b = (i & (1 << (reg->size - k - 1))) >> (reg->size - k - 1);
+            printf("%d", b);
+        }
+        printf("> ");
+        printf("%.1f %%", mag(reg, i));
+    }
+    printf("\n");
+}
+
+void H_qbit(qbit *qubit){
+    double complex temp_o = qubit->oCoeff;
+    double complex temp_z = qubit->zCoeff;
+
+    qubit->zCoeff = ((creal(temp_o) + creal(temp_z)) + (cimag(temp_o) + cimag(temp_z))) / sqrt(2);
+    qubit->oCoeff = ((creal(temp_o) - creal(temp_z)) + (cimag(temp_o) - cimag(temp_z))) / sqrt(2);
+}
+
+void Hadamard_mat(qreg *reg, int first, int second){
+    double complex temp_ps = reg->matrix[first];
+    double complex temp_ns = reg->matrix[second];
+
+    reg->matrix[first] = ((creal(temp_ps) + creal(temp_ns)) + (cimag(temp_ps) + cimag(temp_ns))) / sqrt(2);
+    reg->matrix[second] = ((creal(temp_ps) - creal(temp_ns)) + (cimag(temp_ps) - cimag(temp_ns))) / sqrt(2);
+}
+
+void H(qreg *reg, int *buff, int n){
+    int size = pow(2, reg->size);
+    int first, second;
+
+    //Apply the Hadamard gate to the specified qubits.
+    for (int i=0; i<n; i++){
+        int idx = buff[i];
+        H_qbit(&(reg->qb[idx]));
+
+        bool *visited = (bool*) calloc(size, sizeof(bool));
+
+        //Update the matrix.
+        for (int k=0; k<size; k++){
+            if(!visited[k]){
+                first = k;
+                second = k ^ (1 << idx);
+                visited[first] = visited[second] = true;
+                Hadamard_mat(reg, first, second);
+            }
+        }
+        free(visited);
+    }
+}
+
 void Z_qbit(qbit *qubit){
     qubit->oCoeff = creal(qubit->oCoeff) - cimag(qubit->oCoeff)*j;
 }
@@ -130,22 +205,4 @@ void X_qbit(qbit *qubit){
 
     // printf("[DEBUG] qubit state after NOT gate: \n");
     // printqbitState(*qubit);
-}
-
-
-void PA(qreg *reg){
-    for(int i=0; i< pow(2, reg->size); i++){
-        printf("\n[%d]:\t[%.5f", i, creal(reg->matrix[i]));
-        if(cimag(reg->matrix[i]) >= 0){
-            printf("+");
-        }
-        printf("%.5fi] |", cimag(reg->matrix[i]));
-        for(int k=0; k<reg->size; k++){
-            int b = (i & (1 << (reg->size - k - 1))) >> (reg->size - k - 1);
-            printf("%d", b);
-        }
-        printf("> ");
-        printf("%.1f %%", mag(reg, i));
-    }
-    printf("\n");
 }
