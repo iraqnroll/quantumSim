@@ -4,7 +4,7 @@
     Operation to print all possible combinations of the qubits 
     that are in the register and their respective probabilities.
 */
-void Pa(qreg *reg);
+void PA(qreg *reg);
 
 /*
     Pauli-X/NOT gate that maps |0> to |1>
@@ -63,6 +63,52 @@ void H_qbit(qbit *qubit);
 */
 void Hadamard_mat(qreg *reg, int first, int second);
 
+/*
+    CNOT gate that maps the basis states |a,b> to |a, a XOR b>
+    in respect to the whole register.
+    Specify the control qubit index and 
+    a buffer of target qubit indexes
+    as well as the size of the buffer.
+*/
+void CNOT(qreg *reg, int control_idx, int *buff, int n);
+
+/*
+    CNOT gate that maps the basis states |a,b> to |a, a XOR b>
+    in respect to a single qubit.
+    Specify target and control qubits indexes.
+*/
+void CNOT_qbit(qbit *control_qb, qbit *target_qbit);
+
+void CNOT_qbit(qbit *control_qb, qbit *target_qbit){
+    if(creal(control_qb->oCoeff) > 0 || cimag(control_qb->oCoeff) > 0){
+        X_qbit(target_qbit);
+    }
+}
+
+void CNOT(qreg *reg, int control_idx, int *buff, int n){
+    int size = pow(2, reg->size);
+
+    for(int t=0; t<n; t++){
+        int target_idx = buff[t];
+        CNOT_qbit(&(reg->qb[control_idx]), &(reg->qb[target_idx]));
+
+        for(int i=0; i<size; i++){
+            int control_bit = (i & (1 << target_idx)) >> target_idx;
+            int target_bit = (i & (1 << control_idx)) >> control_idx;
+            if(control_bit == 1){
+                if((i & (1 << control_idx)) == 0){
+                    int prev_state = i;
+                    int next_state = prev_state ^ (1 << control_idx);
+
+                    double complex temp = reg->matrix[prev_state];
+                    reg->matrix[prev_state] = reg->matrix[next_state];
+                    reg->matrix[next_state] = temp;
+                }
+            }
+        }
+    }
+}
+
 void PA(qreg *reg){
     for(int i=0; i< pow(2, reg->size); i++){
         printf("\n[%d]:\t[%.5f", i, creal(reg->matrix[i]));
@@ -84,8 +130,8 @@ void H_qbit(qbit *qubit){
     double complex temp_o = qubit->oCoeff;
     double complex temp_z = qubit->zCoeff;
 
-    qubit->zCoeff = ((creal(temp_o) + creal(temp_z)) + (cimag(temp_o) + cimag(temp_z))) / sqrt(2);
-    qubit->oCoeff = ((creal(temp_o) - creal(temp_z)) + (cimag(temp_o) - cimag(temp_z))) / sqrt(2);
+    qubit->zCoeff = ((creal(temp_z) + creal(temp_o)) + (cimag(temp_z) + cimag(temp_o))) / sqrt(2);
+    qubit->oCoeff = ((creal(temp_z) - creal(temp_o)) + (cimag(temp_z) - cimag(temp_o))) / sqrt(2);
 }
 
 void Hadamard_mat(qreg *reg, int first, int second){
@@ -197,12 +243,6 @@ void X_qbit(qbit *qubit){
     double complex tempzCoeff = qubit->zCoeff;
     double complex tempoCoeff = qubit->oCoeff;
 
-    // printf("[DEBUG] Initial qubit state: \n");
-    // printqbitState(*qubit);
-
     qubit->zCoeff = tempoCoeff;
     qubit->oCoeff = tempzCoeff;
-
-    // printf("[DEBUG] qubit state after NOT gate: \n");
-    // printqbitState(*qubit);
 }

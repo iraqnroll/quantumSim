@@ -44,6 +44,7 @@ qreg* initQuRegister(size_t n){
         new_register->matrix[i] = 0.0f + 0.0f*j;
     }
 
+    //Set the measured state to be the all-zero state.
     new_register->matrix[0] = 1.0f + 0.0f*j;
 
     return new_register;
