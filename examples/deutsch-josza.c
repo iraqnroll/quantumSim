@@ -1,16 +1,16 @@
 #include "operations.h"
 
-int DeutschJozsa(){
-
-    /*
+/*
         Implementation of the Deutsch-Jozsa algorithm
         for n-1 sized input.
-    */
+*/
+
+int DeutschJozsa(){
     qreg *input = initQuRegister(4);
     int x_oracleBalanced_idx[] = {0, 2};
     int cnot_indexes[] = {0,1,2};
 
-    //Initalize the output register to state |1>, this will be the last qubit in the register.
+    //Initalize the output to state |1>, this will be the last qubit in the register.
     int x_indexes[] = {3};
     X(input,x_indexes, 1);
 
@@ -22,7 +22,9 @@ int DeutschJozsa(){
     int h_indexes[] = {0,1,2,3};
     H(input, h_indexes, 4);
 
+
     //Define and apply the quantum oracle function (Balanced)
+    /*=====================================================================================================*/
     X(input, x_oracleBalanced_idx, 2);
 
     //Add CNOT gate with inputs as target qubits and output qubit as control.
@@ -31,10 +33,12 @@ int DeutschJozsa(){
     //Wrap both ends of the input qubits in X gates
     X(input, x_oracleBalanced_idx, 2);
 
+    /*=====================================================================================================*/
+
     //Finally, apply Hadamard gate to all input qubits.
     H(input, h_indexes, 4);
 
-
+    //Output the final state of the system.
     PA(input);
     return 0;
 }
