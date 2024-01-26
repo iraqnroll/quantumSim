@@ -72,6 +72,8 @@ void Hadamard_mat(qreg *reg, int first, int second);
 */
 void CNOT(qreg *reg, int control_idx, int *buff, int n);
 
+//void CNOT_S(qreg *reg, int control_idx, int )
+
 /*
     CNOT gate that maps the basis states |a,b> to |a, a XOR b>
     in respect to a single qubit.
@@ -79,32 +81,128 @@ void CNOT(qreg *reg, int control_idx, int *buff, int n);
 */
 void CNOT_qbit(qbit *control_qb, qbit *target_qbit);
 
+/*
+    SWAP gate that swaps the states of two qubits in
+    respect to the whole register.
+*/
+void SWAP(qreg *reg, int first_idx, int second_idx);
+
+/*
+    SWAP gate that swaps the states of two qubits:
+    |a,b> to |b,a>
+*/
+void SWAP_qbit(qbit *first_qb, qbit *second_qb);
+
+void SWAP_qbit(qbit *first_qb, qbit *second_qb)
+{
+    qbit temp = initQubit(0);
+
+    //Copy the amplitude coeffs
+    temp.zCoeff = first_qb->zCoeff;
+    temp.oCoeff = first_qb->oCoeff;
+
+    //Swap the coefficients.
+    first_qb->zCoeff = second_qb->zCoeff;
+    first_qb->oCoeff = second_qb->oCoeff;
+
+    second_qb->zCoeff = temp.zCoeff;
+    second_qb->oCoeff = temp.oCoeff;
+}
+
+
+
+void SWAP(qreg *reg, int first_idx, int second_idx)
+{
+	SWAP_qbit(&(reg->qb[first_idx]), &(reg->qb[second_idx]));
+
+	int size = pow(2, reg->size);
+	bool *visited = (bool*) calloc(size, size * sizeof(bool));
+	int state1, state2;
+	int first, second;
+
+	for(int i = 0; i < size; i++) {
+		if(!visited[i]) {
+			state1 = (i & (1 << first_idx)) >> first_idx;
+			state2 = (i & (1 << second_idx)) >> second_idx;
+			first = i;
+			second = (i ^ (1 << first_idx)) ^ (1 << second_idx);
+			visited[first] = visited[second] = true;
+
+			if(state1 != state2) {
+				double complex temp = reg->matrix[first];
+				reg->matrix[first] = reg->matrix[second];
+				reg->matrix[second] = temp;
+			}
+		}
+	}
+}
+
 void CNOT_qbit(qbit *control_qb, qbit *target_qbit){
-    if(creal(control_qb->oCoeff) > 0 || cimag(control_qb->oCoeff) > 0){
+    if(fabs(creal(control_qb->oCoeff)) > 0 || fabs(cimag(control_qb->oCoeff) > 0)){
         X_qbit(target_qbit);
     }
 }
 
-void CNOT(qreg *reg, int control_idx, int *buff, int n){
+void CNOT(qreg *reg, int control_idx, int *buff, int n)
+{
     int size = pow(2, reg->size);
+    bool *visited = (bool*)calloc(size, size*sizeof(bool));
+    bool invertStates = false;
+    int first, second, bitshift_part;
 
-    for(int t=0; t<n; t++){
-        int target_idx = buff[t];
-        CNOT_qbit(&(reg->qb[control_idx]), &(reg->qb[target_idx]));
+    for(int k=0; k<n; k++)
+    {
+        int target_idx = buff[k];
+        printf("Target index[%d]\n", target_idx);
 
-        for(int i=0; i<size; i++){
-            int control_bit = (i & (1 << target_idx)) >> target_idx;
-            int target_bit = (i & (1 << control_idx)) >> control_idx;
-            if(control_bit == 1){
-                if((i & (1 << control_idx)) == 0){
-                    int prev_state = i;
-                    int next_state = prev_state ^ (1 << control_idx);
+        for(int i=0; i<size; i++)
+        {
+            double amplitude = fabs(creal(reg->matrix[i])) + fabs(cimag(reg->matrix[i]));
 
-                    double complex temp = reg->matrix[prev_state];
-                    reg->matrix[prev_state] = reg->matrix[next_state];
-                    reg->matrix[next_state] = temp;
-                }
+            //Invert only if control is in state |1>
+            if((i & (1 << control_idx)) && (amplitude > 0))
+            {
+                invertStates = true;
             }
+
+            if(invertStates)
+            {
+                first = second = i;
+
+                if (amplitude > 0 && amplitude < 1)
+                {
+                    /*
+                        qubits are in superposition, that means
+                        the gate acts linearly with a control qubit, but will change
+                        the target only on the part involving a |1⟩
+                        in the control qubit.
+                    */
+                   bitshift_part = (1 << control_idx);
+                }
+                else
+                {
+                    bitshift_part = (1 << target_idx);
+                }
+                
+
+                second = second ^ bitshift_part;
+
+                if(!visited[first] && !visited[second] && bitshift_part != first) 
+                {
+                    CNOT_qbit(&(reg->qb[control_idx]), &(reg->qb[target_idx]));
+                    visited[first] = visited[second] = true;
+                    double complex temp = reg->matrix[first];
+                    reg->matrix[first] = reg->matrix[second];
+                    reg->matrix[second] = temp;
+                }
+
+                invertStates = false;
+                PA(reg);
+            }
+        }
+        for(int k=0; k<size; k++)
+        {
+            visited[k] = false;
         }
     }
 }
@@ -115,12 +213,13 @@ void PA(qreg *reg){
         if(cimag(reg->matrix[i]) >= 0){
             printf("+");
         }
-        printf("%.5fi] |", cimag(reg->matrix[i]));
+        printf("%.5fi] <", cimag(reg->matrix[i]));
+
         for(int k=0; k<reg->size; k++){
             int b = (i & (1 << (reg->size - k - 1))) >> (reg->size - k - 1);
             printf("%d", b);
         }
-        printf("> ");
+        printf("| ");
         printf("%.1f %%", mag(reg, i));
     }
     printf("\n");
