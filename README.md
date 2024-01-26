@@ -10,4 +10,5 @@ QuantumSim is a small C library with no external dependencies that allows you to
 	- Pauli-Z/Phase-flip gate
 	- Hadamard gate
 	- CNOT gate
+ 	- SWAP gate
 - A few examples on how to use the library, including an implementation of the Deutsch-Josza algorithm for a n-sized input.
