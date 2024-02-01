@@ -72,8 +72,6 @@ void Hadamard_mat(qreg *reg, int first, int second);
 */
 void CNOT(qreg *reg, int control_idx, int *buff, int n);
 
-//void CNOT_S(qreg *reg, int control_idx, int )
-
 /*
     CNOT gate that maps the basis states |a,b> to |a, a XOR b>
     in respect to a single qubit.
@@ -92,6 +90,341 @@ void SWAP(qreg *reg, int first_idx, int second_idx);
     |a,b> to |b,a>
 */
 void SWAP_qbit(qbit *first_qb, qbit *second_qb);
+
+/*
+    Displays the current circuit in ASCII for the register
+*/
+void print_reg(qreg *reg);
+
+void print_reg(qreg *reg)
+{
+    int number_of_lines = (reg->size * 2) - 1;
+    //Determine the number of lines based on the size of register.
+    char **lines = (char**) malloc(number_of_lines * sizeof(char*));
+
+    //Each line takes 3 chars for the qubit display.
+    int line_length = 3; //+ ((reg->history_size+1) * 5);
+
+    for (int i=0; i<=reg->history_size; i++)
+    {
+        //If it's a CNOT op, count each index as separate displayed op.
+        if(reg->history[i].operation == '+')
+        {
+            line_length += (5 * reg->history[i].qbit_buffSize);
+        }
+        else
+        {
+            line_length = line_length + 5;
+        }
+    }
+
+    for(int i=0; i<reg->size*2; i++)
+    {
+        lines[i] = (char*) malloc(line_length * sizeof(char));
+    }
+
+    //Draw out the qubit for every second line
+    for(int i=0; i<number_of_lines; i++)
+    {
+        if (i%2 == 0)
+        {
+            lines[i][0] = '<';
+            lines[i][1] = '0';
+            lines[i][2] = '|';
+        }
+        else
+        {
+            lines[i][0] = ' ';
+            lines[i][1] = ' ';
+            lines[i][2] = '|';
+        }
+    }
+
+    //Global index of position in lines.
+    int line_idx = 3;
+
+    //Draw the operations stored in the history buffer
+    for (int i=0; i<=reg->history_size; i++)
+    {
+        stored_op operation = reg->history[i];
+
+        if (operation.operation == 'X' 
+            || operation.operation == 'Y' 
+            || operation.operation == 'Z' 
+            || operation.operation == 'H')
+        {   
+            for(int i=0; i<operation.qbit_buffSize; i++)
+            {
+                int temp_idx = operation.qbit_indexes[i];
+                if (temp_idx > 0)
+                {
+                    temp_idx = temp_idx * 2;
+                }
+
+                for (int k=0; k<number_of_lines; k++)
+                {
+                    //Found the line for the specified qubit.
+                    if (k == temp_idx)
+                    {
+                        lines[k][line_idx] =  '-';
+                        lines[k][line_idx+1]= '[';
+                        lines[k][line_idx+2]= operation.operation;
+                        lines[k][line_idx+3]=']';
+                        lines[k][line_idx+4]='-';
+                    }
+                    else
+                    {
+                        if (k%2 == 0)
+                        {
+                            char opChar = lines[k][line_idx+2];
+                            if (opChar != operation.operation)
+                            {
+                                lines[k][line_idx] =  '-';
+                                lines[k][line_idx+1]= '-';
+                                lines[k][line_idx+2]= '-';
+                                lines[k][line_idx+3]= '-';
+                                lines[k][line_idx+4]= '-';
+                            }
+                        }
+                        else
+                        {
+                            lines[k][line_idx] =  ' ';
+                            lines[k][line_idx+1]= ' ';
+                            lines[k][line_idx+2]= ' ';
+                            lines[k][line_idx+3]= ' ';
+                            lines[k][line_idx+4]= ' ';
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            //CNOT or SWAP, will need to draw horizontal lines as well.
+            if (operation.operation == '+')
+            {
+                //CNOT
+                int ctrl_idx = operation.control_idx;
+
+                if (ctrl_idx > 0)
+                {
+                    ctrl_idx = ctrl_idx * 2;
+                }
+                
+                int temp_horizontal_idx = line_idx + 2;
+
+                for (int i=0; i<operation.qbit_buffSize; i++)
+                {
+                    int temp_idx = operation.qbit_indexes[i];
+                    if (temp_idx > 0)
+                    {
+                        temp_idx = temp_idx * 2;
+                    }
+
+                    for (int k=0; k<number_of_lines; k++)
+                    {
+                        if (k == ctrl_idx)
+                        {
+                            //Draw the control qubit part.
+                            lines[ctrl_idx][line_idx] = '-';
+                            lines[ctrl_idx][line_idx + 1] = '[';
+                            lines[ctrl_idx][line_idx + 2] = '+';
+                            lines[ctrl_idx][line_idx + 3] = ']';
+                            lines[ctrl_idx][line_idx + 4] = '-';
+                        }
+
+                        //Found the line for the target qubit.
+                        if (k == temp_idx)
+                        {
+                            lines[k][line_idx] =  '-';
+                            lines[k][line_idx+1]= '[';
+                            lines[k][line_idx+2]= 'o';
+                            lines[k][line_idx+3]= ']';
+                            lines[k][line_idx+4]= '-';
+                        }
+                        
+                        //It's a qubit line, but not the target.
+                        if(k%2 == 0 && k != temp_idx)
+                        {
+                            char opChar = lines[k][line_idx + 2];
+                            if (opChar != '+')
+                            {
+                                if (temp_idx > ctrl_idx)
+                                {
+                                    if (k > ctrl_idx && k < temp_idx)
+                                    {
+                                        lines[k][line_idx] =  '-';
+                                        lines[k][line_idx+1]= '-';
+                                        lines[k][line_idx+2]= '+';
+                                        lines[k][line_idx+3]= '-';
+                                        lines[k][line_idx+4]= '-';
+                                    }
+                                    else
+                                    {
+                                        lines[k][line_idx] =  '-';
+                                        lines[k][line_idx+1]= '-';
+                                        lines[k][line_idx+2]= '-';
+                                        lines[k][line_idx+3]= '-';
+                                        lines[k][line_idx+4]= '-';
+                                    }
+                                }
+                                else
+                                {
+                                    if (k > temp_idx && k < ctrl_idx)
+                                    {
+                                        lines[k][line_idx] =  '-';
+                                        lines[k][line_idx+1]= '-';
+                                        lines[k][line_idx+2]= '+';
+                                        lines[k][line_idx+3]= '-';
+                                        lines[k][line_idx+4]= '-';
+                                    }
+                                    else
+                                    {
+                                        lines[k][line_idx] =  '-';
+                                        lines[k][line_idx+1]= '-';
+                                        lines[k][line_idx+2]= '-';
+                                        lines[k][line_idx+3]= '-';
+                                        lines[k][line_idx+4]= '-';
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if(k%2 > 0)
+                        {
+                            if(temp_idx > ctrl_idx)
+                            {
+                                if (k > ctrl_idx && k < temp_idx)
+                                {
+                                    lines[k][line_idx] =  ' ';
+                                    lines[k][line_idx+1]= ' ';
+                                    lines[k][line_idx+2]= '|';
+                                    lines[k][line_idx+3]= ' ';
+                                    lines[k][line_idx+4]= ' ';
+                                }
+                                else
+                                {
+                                    lines[k][line_idx] =  ' ';
+                                    lines[k][line_idx+1]= ' ';
+                                    lines[k][line_idx+2]= ' ';
+                                    lines[k][line_idx+3]= ' ';
+                                    lines[k][line_idx+4]= ' ';
+                                }
+                            }
+                            else
+                            {
+                                if (k > temp_idx && k < ctrl_idx)
+                                {
+                                    lines[k][line_idx] =  ' ';
+                                    lines[k][line_idx+1]= ' ';
+                                    lines[k][line_idx+2]= '|';
+                                    lines[k][line_idx+3]= ' ';
+                                    lines[k][line_idx+4]= ' ';
+                                }
+                                else
+                                {
+                                    lines[k][line_idx] =  ' ';
+                                    lines[k][line_idx+1]= ' ';
+                                    lines[k][line_idx+2]= ' ';
+                                    lines[k][line_idx+3]= ' ';
+                                    lines[k][line_idx+4]= ' ';
+                                }
+                            }
+                        }
+                    }
+
+                    if (i < operation.qbit_buffSize - 1)
+                    {
+                        line_idx = line_idx + 5;
+                    }
+                }
+            }
+
+            if (operation.operation == 'x')
+            {
+                //SWAP
+                int ctrl_idx = operation.control_idx;
+                int target_idx = operation.target_idx;
+
+                if (ctrl_idx > 0)
+                {
+                    ctrl_idx = ctrl_idx * 2;
+                }
+
+                if (target_idx > 0)
+                {
+                    target_idx = target_idx * 2;
+                }
+
+                if (ctrl_idx > target_idx)
+                {
+                    int temp = target_idx;
+                    target_idx = ctrl_idx;
+                    ctrl_idx = temp;
+                }
+                
+                //Draw the first swap qubit part.
+                lines[ctrl_idx][line_idx] = '-';
+                lines[ctrl_idx][line_idx + 1] = '[';
+                lines[ctrl_idx][line_idx + 2] = 'o';
+                lines[ctrl_idx][line_idx + 3] = ']';
+                lines[ctrl_idx][line_idx + 4] = '-';
+
+                //Draw the second swap qubit part.
+                lines[target_idx][line_idx] = '-';
+                lines[target_idx][line_idx + 1] = '[';
+                lines[target_idx][line_idx + 2] = 'o';
+                lines[target_idx][line_idx + 3] = ']';
+                lines[target_idx][line_idx + 4] = '-';
+
+                int temp_horizontal_idx = line_idx + 2;
+
+                //Draw lines between swap qubits.
+                for (int k=0; k<number_of_lines; k++)
+                {
+                    //It's a qubit line, but not operated. Draw a simple horizontal line
+                    if(k%2 == 0 && (k != target_idx || k != ctrl_idx))
+                    {
+                        lines[k][line_idx] =  '-';
+                        lines[k][line_idx+1]= '-';
+                        lines[k][line_idx+2]= '-';
+                        lines[k][line_idx+3]= '-';
+                        lines[k][line_idx+4]= '-';
+                    }
+                    else
+                    {
+                        //It's a horizontal line between operated qubits, draw vertical line.
+                        if (k > ctrl_idx && k < target_idx)
+                        {
+                            lines[k][line_idx] =  ' ';
+                            lines[k][line_idx+1]= ' ';
+                            lines[k][line_idx+2]= '|';
+                            lines[k][line_idx+3]= ' ';
+                            lines[k][line_idx+4]= ' ';
+                        }
+                        else
+                        {
+                            lines[k][line_idx] =  ' ';
+                            lines[k][line_idx+1]= ' ';
+                            lines[k][line_idx+2]= ' ';
+                            lines[k][line_idx+3]= ' ';
+                            lines[k][line_idx+4]= ' ';
+                        }
+                    }
+                }
+            }
+        }
+
+        line_idx = line_idx + 5;
+    }
+
+    //Output generated schematic
+    for (int i=0; i<number_of_lines; i++)
+    {
+        printf("%s \n", lines[i]);
+    }
+}
+
 
 void SWAP_qbit(qbit *first_qb, qbit *second_qb)
 {
@@ -135,6 +468,8 @@ void SWAP(qreg *reg, int first_idx, int second_idx)
 			}
 		}
 	}
+
+    add_operation(reg, 'x', NULL, 0, first_idx, second_idx);
 }
 
 void CNOT_qbit(qbit *control_qb, qbit *target_qbit){
@@ -153,7 +488,7 @@ void CNOT(qreg *reg, int control_idx, int *buff, int n)
     for(int k=0; k<n; k++)
     {
         int target_idx = buff[k];
-        printf("Target index[%d]\n", target_idx);
+        //printf("Target index[%d]\n", target_idx);
 
         for(int i=0; i<size; i++)
         {
@@ -197,7 +532,7 @@ void CNOT(qreg *reg, int control_idx, int *buff, int n)
                 }
 
                 invertStates = false;
-                PA(reg);
+                //PA(reg);
             }
         }
         for(int k=0; k<size; k++)
@@ -205,6 +540,8 @@ void CNOT(qreg *reg, int control_idx, int *buff, int n)
             visited[k] = false;
         }
     }
+
+    add_operation(reg, '+', buff, n, control_idx, 0);
 }
 
 void PA(qreg *reg){
@@ -263,6 +600,8 @@ void H(qreg *reg, int *buff, int n){
         }
         free(visited);
     }
+
+    add_operation(reg, 'H', buff, n, 0, 0);
 }
 
 void Z_qbit(qbit *qubit){
@@ -283,6 +622,8 @@ void Z(qreg *reg, int *buff, int n){
             }
         }
     }
+
+    add_operation(reg, 'Z', buff, n, 0, 0);
 }
 
 void Y_qbit(qbit *qubit){
@@ -312,8 +653,8 @@ void Y(qreg *reg, int* buff, int n){
                 reg->matrix[next_state] = temp_ns;
             }
         }
-
     }
+    add_operation(reg, 'Y', buff, n, 0, 0);
 }
 
 void X(qreg *reg, int* buff, int n){
@@ -335,6 +676,8 @@ void X(qreg *reg, int* buff, int n){
             }
         }
     }
+
+    add_operation(reg, 'X', buff, n, 0, 0);
 }
 
 //Flip the qubit coefficients.
