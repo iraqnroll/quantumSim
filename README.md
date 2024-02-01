@@ -12,3 +12,4 @@ QuantumSim is a small C library with no external dependencies that allows you to
 	- CNOT gate
  	- SWAP gate
 - A few examples on how to use the library, including an implementation of the Deutsch-Josza algorithm for a n-sized input.
+- Functionality to display register and applied gates in a 2D ASCII image. 
